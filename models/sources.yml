@@ -1,0 +1,144 @@
+version: 2
+
+sources:
+  - name: cti
+    tables:
+      - name: rasd
+        description: "Raw CTI/RASD reports dataset"
+        columns:
+          - name: actions
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: analysis
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: classification
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: country
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: creation_date
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: description
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_cti_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_km_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_prm_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_rasd_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: evidence_type
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: importance
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: observation_source
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: publication_date
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: related_entities
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: related_groups
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: report_date
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: report_type
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: threat_type
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: title
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: updated_at
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_names_ar
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: entities_names_en
+            data_type: string
+            description: NULL
+            tags: ""
+
+      - name: entities
+        description: "Raw CTI/RASD reports entities lookup"
+        columns:
+          - name: cti_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: category
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: country
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: domain
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: client_name_ar
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: client_name_en
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: prm_id
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: sector
+            data_type: string
+            description: NULL
+            tags: ""
+          - name: type_of_entity
+            data_type: string
+            description: NULL
+            tags: ""
