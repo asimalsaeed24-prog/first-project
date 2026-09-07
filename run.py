@@ -4,6 +4,10 @@ Reads each file in sql/ and runs the statements in it:
 
     spark-submit run.py
 
+SQL_DIR is a plain path string. "sql" works when you run from the project root.
+Anywhere else -- spark-submit from another folder, or a notebook -- set it to an
+absolute path, e.g. "/Workspace/Repos/you/first-project/sql".
+
 To change what gets built, edit MODELS. To change a query, edit its .sql file.
 
 Statements are separated by ';', so a ';' must not appear inside a string
@@ -13,14 +17,12 @@ The dimensions are APPEND-ONLY. Their ids come from Delta identity columns and
 the business reports against them, so a dimension must never be dropped or
 rebuilt with CREATE OR REPLACE -- that re-mints every id. Back them up.
 """
-from pathlib import Path
-
 from pyspark.sql import SparkSession
 
 SOURCE_SCHEMA = "cti"
 TARGET_SCHEMA = "gold"
 
-SQL_DIR = Path(__file__).resolve().parent / "sql"
+SQL_DIR = "sql"
 
 # Build order: staging first, then the dimensions, then the bridges and the
 # fact that read them.
@@ -43,12 +45,11 @@ MODELS = [
 spark = SparkSession.builder.appName("cti_rasd_star_schema").getOrCreate()
 
 for model in MODELS:
-    query = (
-        (SQL_DIR / f"{model}.sql")
-        .read_text(encoding="utf-8")
-        .replace("{{ source_schema }}", SOURCE_SCHEMA)
-        .replace("{{ target_schema }}", TARGET_SCHEMA)
-    )
+    with open(f"{SQL_DIR}/{model}.sql", encoding="utf-8") as sql_file:
+        query = sql_file.read()
+
+    query = query.replace("{{ source_schema }}", SOURCE_SCHEMA)
+    query = query.replace("{{ target_schema }}", TARGET_SCHEMA)
 
     print(f"running {model}")
     for statement in query.split(";"):
