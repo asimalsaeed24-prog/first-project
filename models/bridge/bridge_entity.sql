@@ -4,7 +4,7 @@
     unique_key=['entity_group_key', 'entity_id'],
     tags=['gold', 'bridge']
   )
-}}
+}} 
 
 -- Expands fact_report.entity_group_key into the entities a report is about.
 --   fact_report -> bridge_entity -> dim_entity
