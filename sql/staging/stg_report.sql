@@ -1,0 +1,124 @@
+-- Normalizes the raw RASD feed once, so every downstream model reads the same
+-- values:
+--
+--   * dates parsed out of strings, NULL when nothing matches
+--   * dimension attributes stripped of the string spellings of NULL
+--   * the three multi-valued columns turned into member sets and hashed into
+--     bridge group keys
+--
+-- The bridges explode the member arrays produced here and the fact keeps the
+-- keys, so a report's group key and its bridge rows always describe the same
+-- set of members.
+
+CREATE OR REPLACE TABLE {{ target_schema }}.stg_report USING delta AS
+
+WITH raw_reports AS (
+  SELECT *
+  FROM {{ source_schema }}.rasd
+  WHERE report_type = 'rasd'
+),
+
+identifiers AS (
+  SELECT
+    *,
+    -- A report names its entities by whatever identifier it carries, strongest
+    -- first. entities_rasd_id has no counterpart in cti.entities, so those
+    -- members resolve to the Unknown entity rather than disappearing.
+    coalesce(
+      nullif(trim(entities_cti_id), ''),
+      nullif(trim(entities_prm_id), ''),
+      nullif(trim(entities_rasd_id), ''),
+      nullif(trim(entities_names_ar), '')
+    ) AS entity_source,
+    nullif(trim(creation_date), '') AS raw_creation_date,
+    nullif(trim(publication_date), '') AS raw_publication_date,
+    nullif(trim(report_date), '') AS raw_report_date,
+    nullif(trim(updated_at), '') AS raw_updated_at
+  FROM raw_reports
+),
+
+-- split -> trim -> upper -> drop blanks.
+-- '\\|' because split() takes a regex: a bare '|' matches the empty string and
+-- would shatter every entity name into characters.
+--
+-- The *_labels arrays keep the original casing. They are what dim_country and
+-- dim_group publish and mint their ids from. The upper-cased *_tokens are only
+-- ever used for matching.
+tokenized AS (
+  SELECT
+    *,
+    filter(transform(split(coalesce(country, ''), ','), x -> upper(trim(x))), x -> x <> '') AS country_tokens,
+    filter(transform(split(coalesce(entity_source, ''), '\\|'), x -> upper(trim(x))), x -> x <> '') AS entity_tokens,
+    filter(transform(split(coalesce(related_groups, ''), ','), x -> upper(trim(x))), x -> x <> '') AS group_tokens,
+    array_distinct(filter(transform(split(coalesce(country, ''), ','), x -> trim(x)), x -> x <> '')) AS country_labels,
+    array_distinct(filter(transform(split(coalesce(related_groups, ''), ','), x -> trim(x)), x -> x <> '')) AS group_labels
+  FROM identifiers
+),
+
+-- Sorting and de-duplicating is what makes 'US,SA' and 'SA,US' one group.
+-- A report with no values gets the single member 'UNKNOWN', which resolves to
+-- each dimension's id = -1 row.
+member_sets AS (
+  SELECT
+    *,
+    CASE WHEN size(country_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(country_tokens)) END AS country_members,
+    CASE WHEN size(entity_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(entity_tokens)) END AS entity_members,
+    CASE WHEN size(group_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(group_tokens)) END AS group_members
+  FROM tokenized
+)
+
+SELECT
+  id AS report_id,
+  title,
+  description,
+  actions,
+  analysis,
+
+  -- try_to_timestamp() yields NULL instead of failing, so one malformed date
+  -- cannot take the run down. The bare call handles ISO-8601.
+  to_date(coalesce(
+    try_to_timestamp(raw_creation_date),
+    try_to_timestamp(raw_creation_date, 'dd/MM/yyyy HH:mm:ss'),
+    try_to_timestamp(raw_creation_date, 'dd/MM/yyyy'),
+    try_to_timestamp(raw_creation_date, 'MM/dd/yyyy')
+  )) AS creation_date,
+
+  to_date(coalesce(
+    try_to_timestamp(raw_publication_date),
+    try_to_timestamp(raw_publication_date, 'dd/MM/yyyy HH:mm:ss'),
+    try_to_timestamp(raw_publication_date, 'dd/MM/yyyy'),
+    try_to_timestamp(raw_publication_date, 'MM/dd/yyyy')
+  )) AS publication_date,
+
+  to_date(coalesce(
+    try_to_timestamp(raw_report_date),
+    try_to_timestamp(raw_report_date, 'dd/MM/yyyy HH:mm:ss'),
+    try_to_timestamp(raw_report_date, 'dd/MM/yyyy'),
+    try_to_timestamp(raw_report_date, 'MM/dd/yyyy')
+  )) AS report_date,
+
+  coalesce(
+    try_to_timestamp(raw_updated_at),
+    try_to_timestamp(raw_updated_at, 'dd/MM/yyyy HH:mm:ss'),
+    try_to_timestamp(raw_updated_at, 'dd/MM/yyyy'),
+    try_to_timestamp(raw_updated_at, 'MM/dd/yyyy')
+  ) AS updated_at,
+
+  CASE WHEN upper(trim(classification))     IN ('NULL', 'NUL', '') THEN NULL ELSE trim(classification)     END AS classification_name,
+  CASE WHEN upper(trim(evidence_type))      IN ('NULL', 'NUL', '') THEN NULL ELSE trim(evidence_type)      END AS evidence_type_name,
+  CASE WHEN upper(trim(importance))         IN ('NULL', 'NUL', '') THEN NULL ELSE trim(importance)         END AS importance_level,
+  CASE WHEN upper(trim(observation_source)) IN ('NULL', 'NUL', '') THEN NULL ELSE trim(observation_source) END AS source_name,
+  CASE WHEN upper(trim(threat_type))        IN ('NULL', 'NUL', '') THEN NULL ELSE trim(threat_type)        END AS threat_type_name,
+
+  country_members,
+  entity_members,
+  group_members,
+
+  country_labels,
+  group_labels,
+
+  lower(md5(array_join(country_members, '|'))) AS country_group_key,
+  lower(md5(array_join(entity_members, '|')))  AS entity_group_key,
+  lower(md5(array_join(group_members, '|')))   AS group_group_key
+
+FROM member_sets
