@@ -6,7 +6,9 @@ A star schema over the raw CTI/RASD report feed, available two ways:
 | --- | --- |
 | [`sql/`](sql) + [`run.py`](run.py) | plain Spark SQL models, executed with `spark.sql` |
 | [`load_postgres.py`](load_postgres.py) | ships the finished star schema to Postgres |
-| [`dags/`](dags) | Airflow, one task per model |
+| [`sql/semantic/`](sql/semantic) | business-facing views over the star schema |
+| [`dags/`](dags) | Airflow, one DAG, one task per model |
+| [`django_warehouse/`](django_warehouse) | Django models and migrations owning the Postgres schema |
 | [`models/`](models) + [`macros/`](macros) | the dbt project (Trino and Spark) |
 
 Both produce the same tables. The SQL models are the ones to reach for when you
@@ -14,35 +16,24 @@ want to run, read or debug a query directly.
 
 ## Running it
 
+`run.py` builds **one model**:
+
 ```bash
-spark-submit run.py
+spark-submit run.py dim/dim_country
 ```
 
-[run.py](run.py) reads a `.sql` file, swaps in the schema names, and decides how
-to write it:
+It reads that one `.sql` file, swaps in the schema names, and writes it
+according to the folder it came from:
 
-```python
-if model.startswith("keys/"):                 # append-only, owns the keys
-    for statement in query.split(";"):        # file carries its own CREATE
-        if statement.strip():
-            spark.sql(statement)
-
-elif spark.catalog.tableExists(table):        # derived, rebuilt every run
-    spark.sql(f"INSERT OVERWRITE TABLE {table} {query}")
-
-else:
-    spark.sql(f"CREATE TABLE {table} USING delta AS {query}")
-```
-
-So there are two kinds of model file:
-
-| | file contains | write behaviour |
+| folder | becomes | how |
 | --- | --- | --- |
-| `keys/dim_key` | its own `CREATE` + an insert | append-only, never overwritten |
-| everything else | a plain `SELECT` | created once, then `INSERT OVERWRITE` |
+| `keys/` | a table | append-only, never overwritten |
+| `semantic/` | a **view** | `CREATE OR REPLACE VIEW` |
+| everything else | a table | created once, then `INSERT OVERWRITE` |
 
-Schema names are the constants at the top of the file. `MODELS` is the build
-order — comment out a line to skip a table, reorder to change what runs when.
+The order the models go in is **not** in this script — it lives in `PIPELINE`
+in the DAG. One model per run means each is its own Airflow task: visible in the
+graph by name, retryable on its own, and self-identifying when it fails.
 
 Statements are split on `;`, so a `;` must not appear inside a string literal or
 a comment in any `.sql` file.
@@ -51,11 +42,6 @@ a comment in any `.sql` file.
 if you add or rename a column in a model, `DROP` its table once and let the
 script recreate it. That is safe for every table except `dim_key`.
 
-No version-specific features are used. `spark.catalog.tableExists` needs
-PySpark 3.3+; the SQL itself is plain Spark 3.x. Date parsing uses
-`to_timestamp`, which returns NULL on a value it cannot parse — if your cluster
-runs with `spark.sql.ansi.enabled = true` it raises instead, so switch those
-calls to `try_to_timestamp` (Spark 3.5+).
 
 ## Keys are stable — do not drop `dim_key`
 
@@ -113,27 +99,62 @@ Notes on the behaviour:
 
 ## Airflow
 
-Two DAGs in [dags/](dags), both building their tasks from `sql/` at parse time —
-add a `.sql` file and a task appears, with no DAG edit.
+One DAG, [dags/cti_pipeline_dag.py](dags/cti_pipeline_dag.py), covering the lot:
+build the star schema, migrate the Postgres schema with Django, then move the
+data across. One task per model throughout — 33 tasks in 10 groups.
 
-**[cti_star_schema](dags/cti_star_schema_dag.py)** builds the warehouse. One task
-per model, layers in order, models inside a layer in parallel:
+The whole schedule is one array:
+
+```python
+PIPELINE = [
+    # group name                kind      models or layers
+    ("staging_tables",          BUILD,    ["staging"]),
+    ("key_registry",            BUILD,    ["keys"]),
+    ("dimension_tables",        BUILD,    ["dim"]),
+    ("fact_and_bridge_tables",  BUILD,    ["bridge", "fact"]),
+    ("semantic_spine",          BUILD,    ["semantic/vw_report"]),
+    ("semantic_views",          BUILD,    ["semantic/vw_report_country",
+                                           "semantic/vw_report_entity",
+                                           "semantic/vw_report_group"]),
+    ("semantic_metrics",        BUILD,    ["semantic"]),
+    ("django_migrate",          MIGRATE,  []),
+    ("postgres_dimensions",     LOAD,     ["dim"]),
+    ("postgres_facts",          LOAD,     ["bridge", "fact"]),
+]
+```
+
+Each entry is one **task group**. Groups run one after another, everything
+inside a group runs in parallel. `staging_tables` holds `stg_report` and
+`stg_entity`, `dimension_tables` holds the eight dimensions, and so on:
 
 ```
-staging (2)  ->  keys (1)  ->  dim (8)  ->  bridge (3)  ->  fact (1)
+staging_tables (2) -> key_registry (1) -> dimension_tables (8)
+  -> fact_and_bridge_tables (4) -> semantic_spine (1) -> semantic_views (3)
+  -> semantic_metrics (1) -> django_migrate (1)
+  -> postgres_dimensions (8) -> postgres_facts (4)
 ```
 
-Each task is `spark-submit run.py <layer>/<model>`, which gives per-model retries
-and a failure that names the model. The cost is a Spark session per model — if
-start-up dominates, collapse it to a single task running `run.py` with no
-arguments, which builds everything in order by itself.
+The `kind` column decides what the group builds: `BUILD` is
+`spark-submit run.py <model>`, `LOAD` is `spark-submit load_postgres.py <table>`,
+`MIGRATE` is `manage.py migrate`.
 
-`max_active_runs=1` is deliberate: `dim_key` is appended to, and two overlapping
-runs could mint the same id twice.
+A models entry is either **a layer** — `"dim"` expands to every `.sql` file in
+`sql/dim/`, so adding a model adds a task with no DAG edit — or **one model**,
+`"semantic/vw_report"`, pinning something that has to go first.
 
-**[cti_postgres_load](dags/cti_postgres_load_dag.py)** ships it to Postgres.
-Dimensions load first so that by the time the bridges and fact land, every id
-they point at is already there.
+A model already scheduled by an earlier group is skipped later, *within its
+phase*. That lets `semantic_spine` pin the view the others build on and
+`semantic_metrics` sweep up everything else in the folder. It is per-phase on
+purpose: otherwise the Postgres groups would find their tables already claimed
+by the build groups and come out empty.
+
+Reorder the array, split a group, or pin a model, and the graph follows —
+nothing below the list changes.
+
+`bridge` and `fact` share a group because both read staging and the dimensions,
+and neither reads the other. `max_active_runs=1` is deliberate: `dim_key` is
+appended to, and two overlapping runs could mint the same id twice.
+
 
 ### Configuration
 
@@ -203,6 +224,87 @@ transaction rolls back and the task fails.
 `stg_report`, `stg_entity` and `dim_key` are warehouse internals and are not
 shipped. Worth considering: adding `dim_key` to the load would give you an
 off-lakehouse copy of the one table you cannot rebuild.
+
+## Postgres schema — Django
+
+[django_warehouse/](django_warehouse) owns the Postgres DDL. `load_postgres.py`
+only moves data: its `CREATE TABLE IF NOT EXISTS` becomes a no-op once these
+migrations have run, so the tables keep the column types, indexes and
+constraints declared in [models.py](django_warehouse/warehouse/models.py)
+instead of whatever Spark's JDBC writer would have inferred.
+
+```bash
+cd django_warehouse
+python manage.py migrate            # what the DAG's django_migrate task runs
+```
+
+One `models.py` holds the whole schema — 17 models in four kinds:
+
+| kind | count | notes |
+| --- | --- | --- |
+| dimensions | 8 | `id` is a plain `BigIntegerField`, **not** an auto field — the value is minted in `gold.dim_key` and has to survive the trip |
+| bridges | 3 | natural key is (group key, member), so they get a surrogate auto id plus a `UniqueConstraint` on the pair |
+| fact | 1 | `report_id` is the key; the five dimension links are real `ForeignKey`s with `db_column` spelled out so Django does not append a second `_id` |
+| views | 5 | `managed = False` — Django records them but emits no DDL |
+
+`gold.dim_key` is deliberately **not** modelled: it is lakehouse-internal, is
+never shipped to Postgres, and its natural key is the composite
+`(dimension, natural_key)`, which Django could not express as a primary key
+before 5.2.
+
+The semantic views are created by
+[0002_semantic_views.py](django_warehouse/warehouse/migrations/0002_semantic_views.py),
+which reads the same `sql/semantic/*.sql` files Spark uses, so both engines
+expose the same definitions and there is one place to change one. It drops in
+reverse dependency order before creating, because `CREATE OR REPLACE VIEW` in
+Postgres cannot change a view's column list.
+
+Needs `psycopg` wherever the migration runs, including the Airflow worker:
+
+```bash
+pip install "psycopg[binary]"
+```
+
+Point it at the database with the usual `PGHOST` / `PGPORT` / `PGDATABASE` /
+`PGUSER` / `PGPASSWORD`, plus `PGSCHEMA` (default `public`) — keep that in step
+with `spark.cti.pg.schema`, which is where `load_postgres.py` writes. If the
+repo is not next to `django_warehouse/`, set `CTI_SQL_DIR` so the view migration
+can find `sql/semantic/`.
+
+
+## The semantic layer
+
+[sql/semantic/](sql/semantic) is what people actually query. Nobody outside the
+warehouse should have to know an id or write a bridge join.
+
+| view | grain |
+| --- | --- |
+| `vw_report` | one row per report, every single-valued dimension resolved to its name |
+| `vw_report_country` | one row per report per country |
+| `vw_report_entity` | one row per report per entity, with sector, category, cti_id |
+| `vw_report_group` | one row per report per threat group |
+| `vw_entity_coverage` | one row per metric: how far the CTI register covers what reports mention |
+
+They are views, not tables — no storage, always current, rebuilt in a second.
+`vw_report` is the spine and the fan-out views build on it, which is why the DAG
+pins it to its own stage.
+
+The fan-out views are one row per **mention**, so `COUNT(*)` over them counts
+mentions, not reports. Sum `weight_factor` to count reports without double
+counting — a report spread over three countries contributes 1/3 to each, and
+they add back to 1:
+
+```sql
+SELECT country_name, sum(weight_factor) AS reports
+FROM gold.vw_report_country
+GROUP BY country_name
+ORDER BY reports DESC;
+```
+
+`vw_entity_coverage` recomputes the integration breakdown that used to be pasted
+as an email into the bottom of the dbt `fact_report.sql`, so it moves when the
+data moves.
+
 
 ## The model
 

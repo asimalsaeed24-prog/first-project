@@ -3,7 +3,7 @@
 Everything the Spark scripts need arrives as --conf under the spark.cti.*
 namespace, so the DAG owns the configuration and the scripts hold no
 environment lookups of their own. The scripts keep defaults for these, which is
-what makes a bare `spark-submit run.py` still work outside Airflow.
+what makes a bare `spark-submit run.py <model>` still work outside Airflow.
 
 The two paths below are needed while the DAG file is being parsed -- to find the
 .sql files and build one task per model -- so they cannot come from Spark. They
@@ -20,6 +20,11 @@ PROJECT_HOME = Variable.get(
     "cti_project_home", default_var=str(Path(__file__).resolve().parents[1])
 )
 SQL_DIR = Path(PROJECT_HOME) / "sql"
+
+# Where manage.py lives, for the django_migrate task.
+DJANGO_HOME = Variable.get(
+    "cti_django_home", default_var=str(Path(PROJECT_HOME) / "django_warehouse")
+)
 
 SPARK_CONN_ID = Variable.get("cti_spark_conn_id", default_var="spark_default")
 
@@ -61,6 +66,41 @@ POSTGRES_CONF = {
 }
 
 
-def models_in(*layers: str) -> list[str]:
-    """The model names under sql/<layer>, in a stable order."""
-    return sorted(path.stem for layer in layers for path in (SQL_DIR / layer).glob("*.sql"))
+def expand(*entries: str) -> list[str]:
+    """Turn stage entries into "layer/model" paths.
+
+        "dim"             -> every model in sql/dim/, in name order
+        "dim/dim_entity"  -> just that one
+
+    A layer expands to whatever is on disk, so adding a .sql file adds a task.
+    Naming a single model lets a stage pin something that has to go first.
+    """
+    models: list[str] = []
+    for entry in entries:
+        if "/" in entry:
+            models.append(entry)
+        else:
+            models += [
+                f"{entry}/{path.stem}"
+                for path in sorted((SQL_DIR / entry).glob("*.sql"))
+            ]
+    return models
+
+
+def stages(build_order: list[tuple[str, list[str]]]) -> list[tuple[str, list[str]]]:
+    """Resolve a stage array into (stage name, models) with nothing repeated.
+
+    A model already scheduled by an earlier stage is dropped from later ones, so
+    a stage can pin one model and a later stage can sweep up "everything else in
+    that folder" without building it twice.
+    """
+    resolved: list[tuple[str, list[str]]] = []
+    scheduled: set[str] = set()
+
+    for stage_name, entries in build_order:
+        models = [model for model in expand(*entries) if model not in scheduled]
+        scheduled.update(models)
+        if models:
+            resolved.append((stage_name, models))
+
+    return resolved
