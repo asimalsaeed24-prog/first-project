@@ -9,8 +9,6 @@
 -- id = -1 and stay countable through is_unknown_member instead of disappearing.
 -- That is the "RASD id on the report but no CTI id" cohort.
 
-CREATE OR REPLACE TABLE {{ target_schema }}.bridge_entity USING delta AS
-
 WITH member_sets AS (
   SELECT DISTINCT
     entity_group_key,

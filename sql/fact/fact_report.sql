@@ -7,8 +7,6 @@
 --
 -- Names that are NULL or unmatched fall to id = -1, so no foreign key is NULL.
 
-CREATE OR REPLACE TABLE {{ target_schema }}.fact_report USING delta AS
-
 SELECT
   r.report_id,
   r.title,

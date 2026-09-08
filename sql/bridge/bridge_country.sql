@@ -7,8 +7,6 @@
 -- Multiply a measure by weight_factor to split a report across its members and
 -- keep totals additive. Join without it to answer membership questions.
 
-CREATE OR REPLACE TABLE {{ target_schema }}.bridge_country USING delta AS
-
 WITH member_sets AS (
   SELECT DISTINCT
     country_group_key,

@@ -10,8 +10,6 @@
 -- keys, so a report's group key and its bridge rows always describe the same
 -- set of members.
 
-CREATE OR REPLACE TABLE {{ target_schema }}.stg_report USING delta AS
-
 WITH raw_reports AS (
   SELECT *
   FROM {{ source_schema }}.rasd
@@ -74,34 +72,36 @@ SELECT
   actions,
   analysis,
 
-  -- try_to_timestamp() yields NULL instead of failing, so one malformed date
-  -- cannot take the run down. The bare call handles ISO-8601.
+  -- to_timestamp() yields NULL rather than failing when a value matches none of
+  -- the formats, so one malformed date cannot take the run down. The bare call
+  -- handles ISO-8601. On a cluster with spark.sql.ansi.enabled = true it raises
+  -- instead of returning NULL -- use try_to_timestamp() there (Spark 3.5+).
   to_date(coalesce(
-    try_to_timestamp(raw_creation_date),
-    try_to_timestamp(raw_creation_date, 'dd/MM/yyyy HH:mm:ss'),
-    try_to_timestamp(raw_creation_date, 'dd/MM/yyyy'),
-    try_to_timestamp(raw_creation_date, 'MM/dd/yyyy')
+    to_timestamp(raw_creation_date),
+    to_timestamp(raw_creation_date, 'dd/MM/yyyy HH:mm:ss'),
+    to_timestamp(raw_creation_date, 'dd/MM/yyyy'),
+    to_timestamp(raw_creation_date, 'MM/dd/yyyy')
   )) AS creation_date,
 
   to_date(coalesce(
-    try_to_timestamp(raw_publication_date),
-    try_to_timestamp(raw_publication_date, 'dd/MM/yyyy HH:mm:ss'),
-    try_to_timestamp(raw_publication_date, 'dd/MM/yyyy'),
-    try_to_timestamp(raw_publication_date, 'MM/dd/yyyy')
+    to_timestamp(raw_publication_date),
+    to_timestamp(raw_publication_date, 'dd/MM/yyyy HH:mm:ss'),
+    to_timestamp(raw_publication_date, 'dd/MM/yyyy'),
+    to_timestamp(raw_publication_date, 'MM/dd/yyyy')
   )) AS publication_date,
 
   to_date(coalesce(
-    try_to_timestamp(raw_report_date),
-    try_to_timestamp(raw_report_date, 'dd/MM/yyyy HH:mm:ss'),
-    try_to_timestamp(raw_report_date, 'dd/MM/yyyy'),
-    try_to_timestamp(raw_report_date, 'MM/dd/yyyy')
+    to_timestamp(raw_report_date),
+    to_timestamp(raw_report_date, 'dd/MM/yyyy HH:mm:ss'),
+    to_timestamp(raw_report_date, 'dd/MM/yyyy'),
+    to_timestamp(raw_report_date, 'MM/dd/yyyy')
   )) AS report_date,
 
   coalesce(
-    try_to_timestamp(raw_updated_at),
-    try_to_timestamp(raw_updated_at, 'dd/MM/yyyy HH:mm:ss'),
-    try_to_timestamp(raw_updated_at, 'dd/MM/yyyy'),
-    try_to_timestamp(raw_updated_at, 'MM/dd/yyyy')
+    to_timestamp(raw_updated_at),
+    to_timestamp(raw_updated_at, 'dd/MM/yyyy HH:mm:ss'),
+    to_timestamp(raw_updated_at, 'dd/MM/yyyy'),
+    to_timestamp(raw_updated_at, 'MM/dd/yyyy')
   ) AS updated_at,
 
   CASE WHEN upper(trim(classification))     IN ('NULL', 'NUL', '') THEN NULL ELSE trim(classification)     END AS classification_name,

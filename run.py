@@ -1,33 +1,48 @@
 """Build the CTI/RASD star schema.
 
-Reads each file in sql/ and runs the statements in it:
+Reads each file in sql/ and runs it:
 
-    spark-submit run.py
+    spark-submit run.py                     # everything, in order
+    spark-submit run.py dim/dim_country     # one model, for Airflow or a retry
 
-SQL_DIR is a plain path string. "sql" works when you run from the project root.
-Anywhere else -- spark-submit from another folder, or a notebook -- set it to an
-absolute path, e.g. "/Workspace/Repos/you/first-project/sql".
+Settings arrive as --conf, so the Airflow DAG owns them:
 
-To change what gets built, edit MODELS. To change a query, edit its .sql file.
+    spark.cti.source_schema   where cti.rasd and cti.entities live   (cti)
+    spark.cti.target_schema   the schema to build into               (gold)
+    spark.cti.sql_dir         the folder holding these .sql files    (sql)
+
+The defaults in brackets are what you get running this by hand. Set
+spark.cti.sql_dir to an absolute path unless you are running from the project
+root -- spark-submit makes no promise about the working directory.
+
+Two kinds of table, and the difference matters:
+
+  * gold.dim_key holds every dimension's surrogate key and is the only table
+    with state. Its file carries its own CREATE TABLE IF NOT EXISTS and appends
+    the keys it has not seen before. BACK IT UP -- dropping it re-mints every id
+    the business reports against.
+
+  * Everything else -- staging, dimensions, bridges, fact -- is derived. Its
+    .sql file is a plain SELECT, it is created on the first run and
+    INSERT OVERWRITE-n after that, and it can be dropped and rebuilt freely.
 
 Statements are separated by ';', so a ';' must not appear inside a string
 literal or a comment in any .sql file.
 
-The dimensions are APPEND-ONLY. Their ids come from Delta identity columns and
-the business reports against them, so a dimension must never be dropped or
-rebuilt with CREATE OR REPLACE -- that re-mints every id. Back them up.
+INSERT OVERWRITE requires the query's columns to match the existing table. If
+you add or rename a column in a derived model, DROP its table once and let this
+script recreate it.
 """
+import sys
+
 from pyspark.sql import SparkSession
 
-SOURCE_SCHEMA = "cti"
-TARGET_SCHEMA = "gold"
-
-SQL_DIR = "sql"
-
-# Build order: staging first, then the dimensions, then the bridges and the
-# fact that read them.
+# Build order: staging, then the keys minted from it, then the dimensions that
+# read those keys, then the bridges and the fact.
 MODELS = [
     "staging/stg_report",
+    "staging/stg_entity",
+    "keys/dim_key",
     "dim/dim_classification",
     "dim/dim_country",
     "dim/dim_entity",
@@ -44,16 +59,33 @@ MODELS = [
 
 spark = SparkSession.builder.appName("cti_rasd_star_schema").getOrCreate()
 
-for model in MODELS:
+SOURCE_SCHEMA = spark.conf.get("spark.cti.source_schema", "cti")
+TARGET_SCHEMA = spark.conf.get("spark.cti.target_schema", "gold")
+SQL_DIR = spark.conf.get("spark.cti.sql_dir", "sql")
+
+# A model named on the command line, otherwise the whole list in order.
+for model in sys.argv[1:] or MODELS:
     with open(f"{SQL_DIR}/{model}.sql", encoding="utf-8") as sql_file:
         query = sql_file.read()
 
     query = query.replace("{{ source_schema }}", SOURCE_SCHEMA)
     query = query.replace("{{ target_schema }}", TARGET_SCHEMA)
 
-    print(f"running {model}")
-    for statement in query.split(";"):
-        if statement.strip():
-            spark.sql(statement)
+    table = f"{TARGET_SCHEMA}.{model.split('/')[-1]}"
+
+    if model.startswith("keys/"):
+        # Append-only. The file says what to create and what to add.
+        print(f"appending to {table}")
+        for statement in query.split(";"):
+            if statement.strip():
+                spark.sql(statement)
+
+    elif spark.catalog.tableExists(table):
+        print(f"overwriting {table}")
+        spark.sql(f"INSERT OVERWRITE TABLE {table} {query}")
+
+    else:
+        print(f"creating {table}")
+        spark.sql(f"CREATE TABLE {table} USING delta AS {query}")
 
 print("done")
