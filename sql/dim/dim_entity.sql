@@ -1,16 +1,3 @@
--- Every entity a report can be about: registered CTI entities and the
--- label-only ones that appear on a report but were never registered.
---
--- The id comes from dim_key and never changes -- see sql/keys/dim_key.sql. This
--- table itself holds no state and can be dropped and rebuilt at any time.
---
--- Attributes are read fresh from stg_entity every run, so a client that changes
--- sector or corrects its name is updated here while keeping its id. The join is
--- on the natural key, which is the cti_id where the entity has one.
---
--- An entity that has left the source keeps its row, with its label standing in
--- for the name, so a report built before it vanished still resolves its id.
-
 SELECT
   CAST(-1 AS BIGINT) AS id,
   CAST(NULL AS STRING) AS cti_id,

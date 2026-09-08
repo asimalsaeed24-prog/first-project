@@ -1,14 +1,3 @@
--- fact_report.entity_group_key -> dim_entity
---
--- Members arrive as whichever identifier the report carried, so they are
--- matched against dim_entity in preference order -- cti_id, prm_id, Arabic
--- label, English label -- and the first match wins. A label that happens to
--- equal some other entity's id therefore cannot outrank a real id match.
---
--- entities_rasd_id has no counterpart in cti.entities, so those members land on
--- id = -1 and stay countable through is_unknown_member instead of disappearing.
--- That is the "RASD id on the report but no CTI id" cohort.
-
 WITH member_sets AS (
   SELECT DISTINCT
     entity_group_key,
@@ -24,7 +13,6 @@ exploded AS (
   LATERAL VIEW explode(s.entity_members) m AS member
 ),
 
--- Every way an entity can be named, ranked by how trustworthy that way is.
 match_candidates AS (
   SELECT upper(trim(cti_id)) AS member, id AS entity_id, 1 AS priority
   FROM {{ target_schema }}.dim_entity
@@ -61,8 +49,6 @@ entity_lookup AS (
   WHERE row_num = 1
 ),
 
--- An id member and a label member can name the same entity, so collapse them
--- before counting or the weights would not sum to 1.
 resolved AS (
   SELECT
     e.entity_group_key,

@@ -1,29 +1,7 @@
-"""Postgres schema for the CTI/RASD star schema.
-
-Django owns the DDL here. load_postgres.py only moves data: its
-CREATE TABLE IF NOT EXISTS becomes a no-op once these migrations have run, so
-the tables keep the indexes, constraints and column types declared below
-instead of whatever Spark's JDBC writer would have inferred.
-
-Three kinds of model:
-
-  * dimensions   id is the surrogate key minted in gold.dim_key. It is NOT an
-                 auto field -- the value is assigned in the lakehouse and has to
-                 survive the trip, which is the whole point of dim_key.
-  * bridges      the natural key is (group key, member id), so they get a
-                 surrogate auto id and a unique constraint on the pair.
-  * views        managed = False. The semantic layer is created by the
-                 0002_semantic_views migration, not by Django's schema editor.
-
-gold.dim_key itself is not modelled. It is lakehouse-internal, is not shipped to
-Postgres, and its natural key is the composite (dimension, natural_key), which
-Django cannot express as a primary key before 5.2.
-"""
 from django.db import models
 
 
 class Dimension(models.Model):
-    """Shared shape: a surrogate key assigned upstream, never by Postgres."""
 
     id = models.BigIntegerField(primary_key=True)
 
@@ -133,12 +111,6 @@ class DimEntity(Dimension):
 
 
 class FactReport(models.Model):
-    """One row per RASD report.
-
-    The *_group_key columns are not foreign keys -- they identify a *set* of
-    members and join to a bridge, which is what stops a report with three
-    countries from being counted three times.
-    """
 
     report_id = models.TextField(primary_key=True)
 
@@ -152,8 +124,6 @@ class FactReport(models.Model):
     report_date = models.DateField(null=True, blank=True)
     updated_at = models.DateTimeField(null=True, blank=True)
 
-    # db_column is spelled out because Django would otherwise append its own
-    # _id: the lakehouse column really is called classification_id.
     classification = models.ForeignKey(
         DimClassification, on_delete=models.DO_NOTHING,
         db_column="classification_id", related_name="reports",
@@ -194,11 +164,6 @@ class FactReport(models.Model):
 
 
 class Bridge(models.Model):
-    """Shared shape: one row per (group key, member).
-
-    weight_factor splits a report evenly across its members so totals stay
-    additive. Sum it instead of counting rows.
-    """
 
     id = models.BigAutoField(primary_key=True)
     member_value = models.TextField(null=True, blank=True)
@@ -261,22 +226,7 @@ class BridgeGroup(Bridge):
         ]
 
 
-# ---------------------------------------------------------------------------
-# The semantic layer.
-#
-# managed = False: these are VIEWS, created by the 0002_semantic_views
-# migration, and Django must not try to build or alter them. They are read-only
-# -- saving through them will fail in Postgres.
-#
-# Django insists on a primary key. vw_report and vw_entity_coverage have a
-# genuinely unique column. The fan-out views do not -- they are one row per
-# report per member -- so report_id is declared as the key to satisfy the ORM.
-# Filter and aggregate over those, but do not .get() by pk and expect one row.
-# ---------------------------------------------------------------------------
-
-
 class VwReport(models.Model):
-    """One row per report, every single-valued dimension resolved to its name."""
 
     report_id = models.TextField(primary_key=True)
     title = models.TextField(null=True)
@@ -305,11 +255,6 @@ class VwReport(models.Model):
 
 
 class ReportMemberView(models.Model):
-    """Shared shape of the fan-out views: one row per report per member.
-
-    COUNT(*) here counts mentions, not reports. Sum weight_factor to count
-    reports without double counting.
-    """
 
     report_id = models.TextField(primary_key=True)
     title = models.TextField(null=True)
@@ -361,7 +306,6 @@ class VwReportEntity(ReportMemberView):
 
 
 class VwEntityCoverage(models.Model):
-    """One row per metric: how far the CTI register covers what reports mention."""
 
     metric = models.TextField(primary_key=True)
     value = models.BigIntegerField(null=True)

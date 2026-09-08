@@ -1,11 +1,3 @@
--- How far the CTI register actually covers what the reports talk about.
---
--- This is the breakdown that used to be pasted as an email into the bottom of
--- the dbt fact_report.sql. Computed from the model instead of typed by hand, so
--- it moves when the data moves.
---
--- One row per metric, which is the shape a BI tool wants for a tile or a bar.
-
 SELECT
   'cti_entities' AS metric,
   count(*) AS value
@@ -34,8 +26,6 @@ WHERE id <> -1
 
 UNION ALL
 
--- Member slots on reports that resolved to nothing: the reports name an entity
--- the register does not have.
 SELECT
   'unresolved_report_members',
   count(*)

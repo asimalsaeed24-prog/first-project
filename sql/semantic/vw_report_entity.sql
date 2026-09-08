@@ -1,18 +1,3 @@
--- One row per report per entity. A report naming three entities appears three
--- times, so COUNT(*) over this view counts mentions, not reports.
---
--- To count reports without double counting, sum weight_factor instead: a report
--- spread over three entities contributes 1/3 to each, and they add back up to 1.
---
---     SELECT sector, sum(weight_factor) AS reports
---     FROM {{ target_schema }}.vw_report_entity
---     GROUP BY sector
---
--- is_unknown_member marks a member that did not resolve to a known entity.
--- That is mostly the "RASD id on the report but no CTI id" cohort -- those
--- reports name an entity the CTI register has never heard of. Filter it out
--- when you only want registered entities, or group by it to size the gap.
-
 SELECT
   r.report_id,
   r.title,

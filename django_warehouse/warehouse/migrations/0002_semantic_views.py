@@ -1,23 +1,8 @@
-"""Create the semantic layer as Postgres views.
-
-The view bodies are read from sql/semantic/*.sql -- the same files Spark builds
-its views from -- so the two engines expose the same columns and the same
-definitions, and there is one place to change a definition.
-
-The models in models.py for these views are managed = False, so 0001 recorded
-them without emitting any DDL. This migration is what actually creates them.
-
-Order matters: vw_report is the spine the fan-out views select from, and
-vw_entity_coverage reads vw_report_entity. Views are dropped in reverse before
-being created, because CREATE OR REPLACE VIEW in Postgres cannot change a view's
-column list -- so a definition that gains or renames a column would fail.
-"""
 from pathlib import Path
 
 from django.conf import settings
 from django.db import migrations
 
-# Dependency order. Matches the semantic stages in dags/cti_pipeline_dag.py.
 VIEW_ORDER = [
     "vw_report",
     "vw_report_country",
@@ -28,7 +13,6 @@ VIEW_ORDER = [
 
 
 def _definition(view: str) -> str:
-    """The view body, with {{ target_schema }} pointed at the Postgres schema."""
     path = Path(settings.CTI_SQL_DIR) / "semantic" / f"{view}.sql"
     if not path.is_file():
         raise FileNotFoundError(

@@ -1,15 +1,3 @@
--- The spine of the semantic layer: one row per report, with every
--- single-valued dimension already resolved to its name. Nobody outside the
--- warehouse should have to know an id or write a join to answer "what
--- classification was this report".
---
--- The joins are INNER on purpose and cannot drop a report: fact_report resolves
--- an unmatched or NULL attribute to id = -1, and every dimension carries that
--- row. If a report ever goes missing here, a dimension has lost its -1 row.
---
--- The three *_group_key columns are kept so the views below can fan out through
--- the bridges. Ignore them unless you are joining a bridge.
-
 SELECT
   f.report_id,
   f.title,

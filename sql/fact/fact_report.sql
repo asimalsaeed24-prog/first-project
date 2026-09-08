@@ -1,12 +1,3 @@
--- One row per RASD report.
---
--- Single-valued attributes resolve to a dimension id here. Country, entity and
--- related groups are multi-valued, so they keep the group key computed in
--- stg_report and join through their bridge -- a country_id on the fact could
--- only ever keep one of a report's countries.
---
--- Names that are NULL or unmatched fall to id = -1, so no foreign key is NULL.
-
 SELECT
   r.report_id,
   r.title,

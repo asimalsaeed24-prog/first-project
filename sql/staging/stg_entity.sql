@@ -1,13 +1,3 @@
--- Every entity a report can be about, with the natural key its surrogate id is
--- minted from. Two populations:
---
---   * registered CTI entities, which carry a cti_id and the full attribute set
---   * label-only entities, named on a report but never registered
---
--- dim_key mints ids from this model and dim_entity reads it back for the
--- attributes, so the entity list and the ids assigned to it can never be
--- derived from different logic.
-
 WITH cti_entities AS (
   SELECT
     trim(cti_id) AS cti_id,
@@ -24,7 +14,6 @@ WITH cti_entities AS (
   WHERE cti_id IS NOT NULL
 ),
 
--- One row per cti_id.
 registered AS (
   SELECT
     cti_id, prm_id, entity_name_en, entity_name_ar,
@@ -38,7 +27,6 @@ registered AS (
   WHERE row_num = 1
 ),
 
--- entities_names_ar is pipe separated. '\\|' because split() takes a regex.
 report_labels AS (
   SELECT DISTINCT
     trim(value) AS entity_name_ar
@@ -53,7 +41,7 @@ label_only AS (
   SELECT
     CAST(NULL AS STRING) AS cti_id,
     CAST(NULL AS STRING) AS prm_id,
-    l.entity_name_ar AS entity_name_en,  -- the source carries no English label here
+    l.entity_name_ar AS entity_name_en,
     l.entity_name_ar,
     CAST(NULL AS STRING) AS country,
     CAST(NULL AS STRING) AS category,
@@ -72,14 +60,11 @@ label_only AS (
 all_entities AS (
   SELECT * FROM registered
   UNION ALL
+
   SELECT * FROM label_only
 )
 
 SELECT
-  -- What the id is minted from. cti_id for a registered entity, so a client
-  -- renaming itself keeps its key. A label-only entity has nothing but its
-  -- name, so renaming one does mint a new key -- the source carries no
-  -- identifier that would tie the old name to the new one.
   upper(coalesce(cti_id, entity_name_ar)) AS entity_natural_key,
   cti_id,
   prm_id,

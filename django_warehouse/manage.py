@@ -1,9 +1,4 @@
 #!/usr/bin/env python
-"""Run Django admin commands for the CTI/RASD warehouse schema.
-
-    python manage.py makemigrations warehouse
-    python manage.py migrate
-"""
 import os
 import sys
 

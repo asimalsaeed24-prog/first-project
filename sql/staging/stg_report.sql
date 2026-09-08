@@ -1,15 +1,3 @@
--- Normalizes the raw RASD feed once, so every downstream model reads the same
--- values:
---
---   * dates parsed out of strings, NULL when nothing matches
---   * dimension attributes stripped of the string spellings of NULL
---   * the three multi-valued columns turned into member sets and hashed into
---     bridge group keys
---
--- The bridges explode the member arrays produced here and the fact keeps the
--- keys, so a report's group key and its bridge rows always describe the same
--- set of members.
-
 WITH raw_reports AS (
   SELECT *
   FROM {{ source_schema }}.rasd
@@ -19,9 +7,7 @@ WITH raw_reports AS (
 identifiers AS (
   SELECT
     *,
-    -- A report names its entities by whatever identifier it carries, strongest
-    -- first. entities_rasd_id has no counterpart in cti.entities, so those
-    -- members resolve to the Unknown entity rather than disappearing.
+
     coalesce(
       nullif(trim(entities_cti_id), ''),
       nullif(trim(entities_prm_id), ''),
@@ -35,13 +21,6 @@ identifiers AS (
   FROM raw_reports
 ),
 
--- split -> trim -> upper -> drop blanks.
--- '\\|' because split() takes a regex: a bare '|' matches the empty string and
--- would shatter every entity name into characters.
---
--- The *_labels arrays keep the original casing. They are what dim_country and
--- dim_group publish and mint their ids from. The upper-cased *_tokens are only
--- ever used for matching.
 tokenized AS (
   SELECT
     *,
@@ -53,9 +32,6 @@ tokenized AS (
   FROM identifiers
 ),
 
--- Sorting and de-duplicating is what makes 'US,SA' and 'SA,US' one group.
--- A report with no values gets the single member 'UNKNOWN', which resolves to
--- each dimension's id = -1 row.
 member_sets AS (
   SELECT
     *,
@@ -72,10 +48,6 @@ SELECT
   actions,
   analysis,
 
-  -- to_timestamp() yields NULL rather than failing when a value matches none of
-  -- the formats, so one malformed date cannot take the run down. The bare call
-  -- handles ISO-8601. On a cluster with spark.sql.ansi.enabled = true it raises
-  -- instead of returning NULL -- use try_to_timestamp() there (Spark 3.5+).
   to_date(coalesce(
     to_timestamp(raw_creation_date),
     to_timestamp(raw_creation_date, 'dd/MM/yyyy HH:mm:ss'),
