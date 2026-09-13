@@ -1,4 +1,5 @@
 SELECT
+  f.id,
   f.report_id,
   f.title,
   f.description,
@@ -18,21 +19,22 @@ SELECT
 
   f.country_group_key,
   f.entity_group_key,
-  f.group_group_key
+  f.group_group_key,
+  f.adversary_group_key
 
-FROM {{ target_schema }}.fact_report f
+FROM {{ target_schema }}.fact_rasd_report f
 
-JOIN {{ target_schema }}.dim_classification classification
+JOIN {{ target_schema }}.dim_rasd_classification classification
   ON f.classification_id = classification.id
 
-JOIN {{ target_schema }}.dim_evidence_type evidence_type
+JOIN {{ target_schema }}.dim_rasd_evidence_type evidence_type
   ON f.evidence_type_id = evidence_type.id
 
-JOIN {{ target_schema }}.dim_importance_level importance
+JOIN {{ target_schema }}.dim_rasd_importance_level importance
   ON f.importance_level_id = importance.id
 
-JOIN {{ target_schema }}.dim_source observation_source
+JOIN {{ target_schema }}.dim_rasd_source observation_source
   ON f.source_id = observation_source.id
 
-JOIN {{ target_schema }}.dim_threat_type threat_type
+JOIN {{ target_schema }}.dim_rasd_threat_type threat_type
   ON f.threat_type_id = threat_type.id

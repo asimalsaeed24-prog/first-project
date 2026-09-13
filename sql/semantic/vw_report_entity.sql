@@ -25,5 +25,5 @@ FROM {{ target_schema }}.vw_report r
 JOIN {{ target_schema }}.bridge_entity b
   ON r.entity_group_key = b.entity_group_key
 
-JOIN {{ target_schema }}.dim_entity e
+JOIN {{ target_schema }}.dim_rasd_entity e
   ON b.entity_id = e.id

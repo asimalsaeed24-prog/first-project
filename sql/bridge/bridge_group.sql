@@ -19,7 +19,7 @@ resolved AS (
     coalesce(d.id, -1) AS group_id,
     min(e.member) AS member_value
   FROM exploded e
-  LEFT JOIN {{ target_schema }}.dim_group d
+  LEFT JOIN {{ target_schema }}.dim_rasd_group d
     ON e.member = upper(trim(d.group_name))
   GROUP BY
     e.group_group_key,

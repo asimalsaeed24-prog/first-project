@@ -10,8 +10,6 @@ identifiers AS (
 
     coalesce(
       nullif(trim(entities_cti_id), ''),
-      nullif(trim(entities_prm_id), ''),
-      nullif(trim(entities_rasd_id), ''),
       nullif(trim(entities_names_ar), '')
     ) AS entity_source,
     nullif(trim(creation_date), '') AS raw_creation_date,
@@ -26,19 +24,37 @@ tokenized AS (
     *,
     filter(transform(split(coalesce(country, ''), ','), x -> upper(trim(x))), x -> x <> '') AS country_tokens,
     filter(transform(split(coalesce(entity_source, ''), '\\|'), x -> upper(trim(x))), x -> x <> '') AS entity_tokens,
-    filter(transform(split(coalesce(related_groups, ''), ','), x -> upper(trim(x))), x -> x <> '') AS group_tokens,
+    filter(transform(split(coalesce(related_groups, ''), '\\|'), x -> upper(trim(x))), x -> x <> '') AS group_tokens,
     array_distinct(filter(transform(split(coalesce(country, ''), ','), x -> trim(x)), x -> x <> '')) AS country_labels,
     array_distinct(filter(transform(split(coalesce(related_groups, ''), ','), x -> trim(x)), x -> x <> '')) AS group_labels
   FROM identifiers
 ),
 
+-- Get adversary associations for each report
+adversary_lookup AS (
+  SELECT
+    r.id as report_id,
+    collect_set(a.adversary_id) AS adversary_ids
+  FROM identifiers r
+  LEFT JOIN {{ source_schema }}.adversary a
+    ON array_contains(split(coalesce(a.rasd_ids, ''), '[|]'), r.id)
+  GROUP BY r.id
+),
+
 member_sets AS (
   SELECT
-    *,
+    t.*,
+    al.adversary_ids,
     CASE WHEN size(country_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(country_tokens)) END AS country_members,
     CASE WHEN size(entity_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(entity_tokens)) END AS entity_members,
-    CASE WHEN size(group_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(group_tokens)) END AS group_members
-  FROM tokenized
+    CASE WHEN size(group_tokens) = 0 THEN array('UNKNOWN') ELSE array_sort(array_distinct(group_tokens)) END AS group_members,
+    CASE 
+      WHEN al.adversary_ids IS NULL OR size(al.adversary_ids) = 0 
+      THEN array('UNKNOWN') 
+      ELSE array_sort(array_distinct(al.adversary_ids)) 
+    END AS adversary_members
+  FROM tokenized t
+  LEFT JOIN adversary_lookup al ON t.id = al.report_id
 )
 
 SELECT
@@ -85,12 +101,14 @@ SELECT
   country_members,
   entity_members,
   group_members,
+  adversary_members,
 
   country_labels,
   group_labels,
 
   lower(md5(array_join(country_members, '|'))) AS country_group_key,
   lower(md5(array_join(entity_members, '|')))  AS entity_group_key,
-  lower(md5(array_join(group_members, '|')))   AS group_group_key
+  lower(md5(array_join(group_members, '|')))   AS group_group_key,
+  lower(md5(array_join(adversary_members, '|'))) AS adversary_group_key
 
 FROM member_sets

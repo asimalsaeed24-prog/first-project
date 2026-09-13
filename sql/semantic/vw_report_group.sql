@@ -17,5 +17,5 @@ FROM {{ target_schema }}.vw_report r
 JOIN {{ target_schema }}.bridge_group b
   ON r.group_group_key = b.group_group_key
 
-JOIN {{ target_schema }}.dim_group d
+JOIN {{ target_schema }}.dim_rasd_group d
   ON b.group_id = d.id

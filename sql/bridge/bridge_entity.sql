@@ -15,25 +15,25 @@ exploded AS (
 
 match_candidates AS (
   SELECT upper(trim(cti_id)) AS member, id AS entity_id, 1 AS priority
-  FROM {{ target_schema }}.dim_entity
+  FROM {{ target_schema }}.dim_rasd_entity
   WHERE cti_id IS NOT NULL AND trim(cti_id) <> ''
 
   UNION ALL
 
   SELECT upper(trim(prm_id)) AS member, id AS entity_id, 2 AS priority
-  FROM {{ target_schema }}.dim_entity
+  FROM {{ target_schema }}.dim_rasd_entity
   WHERE prm_id IS NOT NULL AND trim(prm_id) <> ''
 
   UNION ALL
 
   SELECT upper(trim(entity_name_ar)) AS member, id AS entity_id, 3 AS priority
-  FROM {{ target_schema }}.dim_entity
+  FROM {{ target_schema }}.dim_rasd_entity
   WHERE entity_name_ar IS NOT NULL AND trim(entity_name_ar) <> ''
 
   UNION ALL
 
   SELECT upper(trim(entity_name_en)) AS member, id AS entity_id, 4 AS priority
-  FROM {{ target_schema }}.dim_entity
+  FROM {{ target_schema }}.dim_rasd_entity
   WHERE entity_name_en IS NOT NULL AND trim(entity_name_en) <> ''
 ),
 
