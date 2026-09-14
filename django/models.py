@@ -4,6 +4,8 @@ from django.db import models
 class Dimension(models.Model):
 
     id = models.BigIntegerField(primary_key=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         abstract = True
@@ -139,7 +141,7 @@ class FactRasdReport(models.Model):
     creation_date = models.DateField(null=True, blank=True)
     publication_date = models.DateField(null=True, blank=True)
     report_date = models.DateField(null=True, blank=True)
-    updated_at = models.DateTimeField(null=True, blank=True)
+    report_updated_at = models.DateTimeField(null=True, blank=True)
 
     classification = models.ForeignKey(
         DimRasdClassification, on_delete=models.DO_NOTHING,
@@ -167,6 +169,9 @@ class FactRasdReport(models.Model):
     group_group_key = models.CharField(max_length=32, null=True, blank=True)
     adversary_group_key = models.CharField(max_length=32, null=True, blank=True)
 
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = "fact_rasd_report"
         verbose_name_plural = "rasd reports"
@@ -190,6 +195,8 @@ class Bridge(models.Model):
     member_count = models.IntegerField(null=True, blank=True)
     weight_factor = models.FloatField(null=True, blank=True)
     is_unknown_member = models.BooleanField(default=False)
+    created_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         abstract = True
@@ -279,7 +286,7 @@ class BridgeAdversaryCountry(Bridge):
         db_table = "bridge_adversary_country"
         constraints = [
             models.UniqueConstraint(
-                fields=["country_group_key", "country"],
+                fields=["adversary_id", "member_value"],
                 name="bridge_adversary_country_unique_member",
             )
         ]

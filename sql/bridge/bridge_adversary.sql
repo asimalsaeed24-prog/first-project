@@ -34,6 +34,8 @@ SELECT
   member_value,
   count(*) OVER (PARTITION BY adversary_group_key) AS member_count,
   1.0 / count(*) OVER (PARTITION BY adversary_group_key) AS weight_factor,
-  (adversary_dim_id = -1) AS is_unknown_member
+  (adversary_dim_id = -1) AS is_unknown_member,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 FROM resolved
 

@@ -9,7 +9,9 @@ SELECT
   CAST(NULL AS STRING) AS sector,
   CAST(NULL AS STRING) AS entity_type,
   CAST(NULL AS STRING) AS domain,
-  false AS is_cti_entity
+  false AS is_cti_entity,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 
 UNION ALL
 
@@ -24,7 +26,9 @@ SELECT
   e.sector,
   e.entity_type,
   e.domain,
-  coalesce(e.is_cti_entity, false) AS is_cti_entity
+  coalesce(e.is_cti_entity, false) AS is_cti_entity,
+  k.first_seen_at AS created_at,
+  current_timestamp() AS updated_at
 FROM {{ target_schema }}.dim_key k
 LEFT JOIN {{ target_schema }}.stg_entity e
   ON e.entity_natural_key = k.natural_key

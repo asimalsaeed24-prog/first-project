@@ -9,7 +9,7 @@ SELECT
   f.creation_date,
   f.publication_date,
   f.report_date,
-  f.updated_at,
+  f.report_updated_at AS updated_at,
 
   classification.classification_name AS classification,
   evidence_type.evidence_type_name   AS evidence_type,

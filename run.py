@@ -75,12 +75,9 @@ elif model.startswith("semantic/"):
     print(f"defining view {table}")
     spark.sql(f"CREATE OR REPLACE VIEW {table} AS {query}")
 
-elif spark.catalog.tableExists(table):
-    print(f"overwriting {table}")
-    spark.sql(f"INSERT OVERWRITE TABLE {table} {query}")
-
 else:
-    print(f"creating {table}")
-    spark.sql(f"CREATE TABLE {table} USING delta AS {query}")
+    # CREATE OR REPLACE is atomic in Delta and also applies column changes
+    print(f"replacing {table}")
+    spark.sql(f"CREATE OR REPLACE TABLE {table} USING delta AS {query}")
 
 print(f"done {table}")

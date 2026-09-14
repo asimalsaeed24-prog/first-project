@@ -2,7 +2,9 @@ SELECT
   CAST(-1 AS BIGINT) AS id,
   CAST(NULL AS STRING) AS adversary_id,
   'Unknown' AS adversary_name,
-  lower(md5('Unknown')) AS country_group_key
+  lower(md5('Unknown')) AS country_group_key,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 
 UNION ALL
 
@@ -10,7 +12,9 @@ SELECT
   k.id,
   a.adversary_id,
   coalesce(a.adversary, k.label) AS adversary_name,
-  a.country_group_key
+  a.country_group_key,
+  k.first_seen_at AS created_at,
+  current_timestamp() AS updated_at
 FROM {{ target_schema }}.dim_key k
 LEFT JOIN {{ target_schema }}.stg_adversary a
   ON a.adversary_id = k.natural_key

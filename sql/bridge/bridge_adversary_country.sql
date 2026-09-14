@@ -30,6 +30,7 @@ SELECT
   ac.member_value,
   ac.member_count,
   1.0 / ac.member_count AS weight_factor,
-  (ac.country_id = -1) AS is_unknown_member
-  
+  (ac.country_id = -1) AS is_unknown_member,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 FROM resolved ac

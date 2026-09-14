@@ -1,11 +1,15 @@
 SELECT
   CAST(-1 AS BIGINT) AS id,
-  'Unknown' AS threat_type_name
+  'Unknown' AS threat_type_name,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 
 UNION ALL
 
 SELECT
   id,
-  label AS threat_type_name
+  label AS threat_type_name,
+  first_seen_at AS created_at,
+  current_timestamp() AS updated_at
 FROM {{ target_schema }}.dim_key
 WHERE dimension = 'dim_rasd_threat_type'

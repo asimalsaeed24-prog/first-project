@@ -32,5 +32,7 @@ SELECT
   member_value,
   count(*) OVER (PARTITION BY country_group_key) AS member_count,
   1.0 / count(*) OVER (PARTITION BY country_group_key) AS weight_factor,
-  (country_id = -1) AS is_unknown_member
+  (country_id = -1) AS is_unknown_member,
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 FROM resolved

@@ -9,7 +9,7 @@ WITH report_data AS (
     r.creation_date,
     r.publication_date,
     r.report_date,
-    r.updated_at,
+    r.updated_at AS report_updated_at,
 
     coalesce(classification_dim.id, -1) AS classification_id,
     coalesce(evidence_type_dim.id, -1)  AS evidence_type_id,
@@ -51,7 +51,7 @@ SELECT
   creation_date,
   publication_date,
   report_date,
-  updated_at,
+  report_updated_at,
 
   classification_id,
   evidence_type_id,
@@ -62,6 +62,9 @@ SELECT
   country_group_key,
   entity_group_key,
   group_group_key,
-  adversary_group_key
+  adversary_group_key,
+
+  current_timestamp() AS created_at,
+  current_timestamp() AS updated_at
 
 FROM report_data

@@ -35,7 +35,7 @@ erDiagram
         date creation_date
         date publication_date
         date report_date
-        timestamp updated_at
+        timestamp report_updated_at
         bigint classification_id FK
         bigint evidence_type_id FK
         bigint importance_level_id FK
@@ -45,35 +45,51 @@ erDiagram
         string entity_group_key
         string group_group_key
         string adversary_group_key
+        timestamp created_at
+        timestamp updated_at
     }
 
     dim_rasd_classification {
         bigint id PK
         string classification_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_evidence_type {
         bigint id PK
         string evidence_type_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_importance_level {
         bigint id PK
         string importance_level
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_source {
         bigint id PK
         string source_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_threat_type {
         bigint id PK
         string threat_type_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_group {
         bigint id PK
         string group_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_country {
         bigint id PK
         string country_name
+        timestamp created_at
+        timestamp updated_at
     }
     dim_rasd_entity {
         bigint id PK
@@ -87,12 +103,16 @@ erDiagram
         string entity_type
         string domain
         boolean is_cti_entity
+        timestamp created_at
+        timestamp updated_at
     }
     dim_cti_adversary {
         bigint id PK
         string adversary_id UK
         string adversary_name
         string country_group_key
+        timestamp created_at
+        timestamp updated_at
     }
 
     bridge_country {
@@ -102,6 +122,8 @@ erDiagram
         bigint member_count
         decimal weight_factor
         boolean is_unknown_member
+        timestamp created_at
+        timestamp updated_at
     }
     bridge_entity {
         string entity_group_key PK
@@ -110,6 +132,8 @@ erDiagram
         bigint member_count
         decimal weight_factor
         boolean is_unknown_member
+        timestamp created_at
+        timestamp updated_at
     }
     bridge_group {
         string group_group_key PK
@@ -118,6 +142,8 @@ erDiagram
         bigint member_count
         decimal weight_factor
         boolean is_unknown_member
+        timestamp created_at
+        timestamp updated_at
     }
     bridge_adversary {
         string adversary_group_key PK
@@ -126,6 +152,8 @@ erDiagram
         bigint member_count
         decimal weight_factor
         boolean is_unknown_member
+        timestamp created_at
+        timestamp updated_at
     }
     bridge_adversary_country {
         string adversary_id PK, FK
@@ -135,6 +163,8 @@ erDiagram
         bigint member_count
         decimal weight_factor
         boolean is_unknown_member
+        timestamp created_at
+        timestamp updated_at
     }
 ```
 
@@ -157,7 +187,7 @@ One row per RASD report.
 | creation_date | DATE | Date the report was created. |
 | publication_date | DATE | Date the report was published. |
 | report_date | DATE | Report observation date. |
-| updated_at | TIMESTAMP | Last update time in the source. |
+| report_updated_at | TIMESTAMP | Last update time of the report in the source. |
 | classification_id | BIGINT | Reference to dim_rasd_classification. |
 | evidence_type_id | BIGINT | Reference to dim_rasd_evidence_type. |
 | importance_level_id | BIGINT | Reference to dim_rasd_importance_level. |
@@ -167,6 +197,8 @@ One row per RASD report.
 | entity_group_key | STRING | Key of the report's entity set in bridge_entity. |
 | group_group_key | STRING | Key of the report's threat group set in bridge_group. |
 | adversary_group_key | STRING | Key of the report's adversary set in bridge_adversary. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 ### 2.2 Dimensions
 
@@ -178,6 +210,8 @@ Report classifications.
 |---|---|---|
 | id | BIGINT | Classification surrogate key. |
 | classification_name | STRING | Classification name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_evidence_type
 
@@ -187,6 +221,8 @@ Types of supporting evidence.
 |---|---|---|
 | id | BIGINT | Evidence type surrogate key. |
 | evidence_type_name | STRING | Evidence type name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_importance_level
 
@@ -196,6 +232,8 @@ Report importance levels.
 |---|---|---|
 | id | BIGINT | Importance level surrogate key. |
 | importance_level | STRING | Importance level name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_source
 
@@ -205,6 +243,8 @@ Observation sources.
 |---|---|---|
 | id | BIGINT | Source surrogate key. |
 | source_name | STRING | Source name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_threat_type
 
@@ -214,6 +254,8 @@ Threat categories.
 |---|---|---|
 | id | BIGINT | Threat type surrogate key. |
 | threat_type_name | STRING | Threat type name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_group
 
@@ -223,6 +265,8 @@ Threat groups named in reports.
 |---|---|---|
 | id | BIGINT | Threat group surrogate key. |
 | group_name | STRING | Threat group name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_country
 
@@ -232,6 +276,8 @@ Countries shared by reports and adversaries.
 |---|---|---|
 | id | BIGINT | Country surrogate key. |
 | country_name | STRING | Country name. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_rasd_entity
 
@@ -250,6 +296,8 @@ Organizations referenced in reports.
 | entity_type | STRING | Entity type. |
 | domain | STRING | Entity web domain. |
 | is_cti_entity | BOOLEAN | True when the entity exists in the CTI register. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### dim_cti_adversary
 
@@ -261,6 +309,8 @@ Adversaries from CTI.
 | adversary_id | STRING | Adversary identifier in CTI. |
 | adversary_name | STRING | Adversary name. |
 | country_group_key | STRING | Key of the adversary's target country set in bridge_adversary_country. |
+| created_at | TIMESTAMP | Time the value was first registered. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 ### 2.3 Bridges
 
@@ -276,6 +326,8 @@ Links report country sets to countries.
 | member_count | BIGINT | Number of countries in the set. |
 | weight_factor | DECIMAL | Share of the report assigned to this country. |
 | is_unknown_member | BOOLEAN | True when the country is missing or unmatched. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### bridge_entity
 
@@ -289,6 +341,8 @@ Links report entity sets to entities.
 | member_count | BIGINT | Number of entities in the set. |
 | weight_factor | DECIMAL | Share of the report assigned to this entity. |
 | is_unknown_member | BOOLEAN | True when the entity is missing or unmatched. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### bridge_group
 
@@ -302,6 +356,8 @@ Links report threat group sets to threat groups.
 | member_count | BIGINT | Number of threat groups in the set. |
 | weight_factor | DECIMAL | Share of the report assigned to this group. |
 | is_unknown_member | BOOLEAN | True when the group is missing or unmatched. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### bridge_adversary
 
@@ -315,6 +371,8 @@ Links report adversary sets to CTI adversaries.
 | member_count | BIGINT | Number of adversaries in the set. |
 | weight_factor | DECIMAL | Share of the report assigned to this adversary. |
 | is_unknown_member | BOOLEAN | True when no adversary is linked or it is unmatched. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 #### bridge_adversary_country
 
@@ -329,6 +387,8 @@ Links CTI adversaries to the countries they target.
 | member_count | BIGINT | Number of countries targeted by the adversary. |
 | weight_factor | DECIMAL | Share of the adversary assigned to this country. |
 | is_unknown_member | BOOLEAN | True when the country is unmatched. |
+| created_at | TIMESTAMP | Time the row was built by the latest pipeline run. |
+| updated_at | TIMESTAMP | Time the row was last refreshed by the pipeline. |
 
 ## 3. Semantic Layer
 
