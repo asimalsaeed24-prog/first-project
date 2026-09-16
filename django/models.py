@@ -90,17 +90,6 @@ class DimCtiAdversary(Dimension):
         return self.adversary_name or self.adversary_id or "Unknown"
 
 
-class DimRasdGroup(Dimension):
-    group_name = models.TextField(null=True, blank=True)
-
-    class Meta:
-        db_table = "dim_rasd_group"
-        verbose_name_plural = "threat groups"
-
-    def __str__(self):
-        return self.group_name or "Unknown"
-
-
 class DimRasdEntity(Dimension):
     cti_id = models.TextField(null=True, blank=True)
     prm_id = models.TextField(null=True, blank=True)
@@ -236,19 +225,21 @@ class BridgeEntity(Bridge):
         ]
 
 
-class BridgeGroup(Bridge):
+class BridgeGroupAdversary(Bridge):
+    """Report threat-group set resolved against the adversary dimension."""
+
     group_group_key = models.CharField(max_length=32)
-    group = models.ForeignKey(
-        DimRasdGroup, on_delete=models.DO_NOTHING,
-        db_column="group_id", related_name="report_links",
+    adversary = models.ForeignKey(
+        DimCtiAdversary, on_delete=models.DO_NOTHING,
+        db_column="adversary_dim_id", related_name="report_group_links",
     )
 
     class Meta:
-        db_table = "bridge_group"
+        db_table = "bridge_group_adversary"
         constraints = [
             models.UniqueConstraint(
-                fields=["group_group_key", "group"],
-                name="bridge_group_unique_member",
+                fields=["group_group_key", "adversary"],
+                name="bridge_group_adversary_unique_member",
             )
         ]
 
@@ -348,8 +339,9 @@ class VwReportCountry(ReportMemberView):
 
 
 class VwReportGroup(ReportMemberView):
-    group_id = models.BigIntegerField(null=True)
-    group_name = models.TextField(null=True)
+    group_label = models.TextField(null=True)
+    adversary_id = models.BigIntegerField(null=True)
+    adversary_name = models.TextField(null=True)
 
     class Meta(ReportMemberView.Meta):
         managed = False

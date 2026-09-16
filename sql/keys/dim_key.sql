@@ -50,13 +50,6 @@ WITH candidates AS (
 
   UNION ALL
 
-  SELECT 'dim_rasd_group', trim(value)
-  FROM {{ target_schema }}.stg_report
-  LATERAL VIEW explode(group_labels) exploded AS value
-  WHERE trim(value) <> ''
-
-  UNION ALL
-
   SELECT 'dim_rasd_entity', entity_natural_key
   FROM {{ target_schema }}.stg_entity
   WHERE entity_natural_key IS NOT NULL

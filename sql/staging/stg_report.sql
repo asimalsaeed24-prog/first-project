@@ -25,8 +25,7 @@ tokenized AS (
     filter(transform(split(coalesce(country, ''), ','), x -> upper(trim(x))), x -> x <> '') AS country_tokens,
     filter(transform(split(coalesce(entity_source, ''), '\\|'), x -> upper(trim(x))), x -> x <> '') AS entity_tokens,
     filter(transform(split(coalesce(related_groups, ''), '\\|'), x -> upper(trim(x))), x -> x <> '') AS group_tokens,
-    array_distinct(filter(transform(split(coalesce(country, ''), ','), x -> trim(x)), x -> x <> '')) AS country_labels,
-    array_distinct(filter(transform(split(coalesce(related_groups, ''), ','), x -> trim(x)), x -> x <> '')) AS group_labels
+    array_distinct(filter(transform(split(coalesce(country, ''), ','), x -> trim(x)), x -> x <> '')) AS country_labels
   FROM identifiers
 ),
 
@@ -104,7 +103,6 @@ SELECT
   adversary_members,
 
   country_labels,
-  group_labels,
 
   lower(md5(array_join(country_members, '|'))) AS country_group_key,
   lower(md5(array_join(entity_members, '|')))  AS entity_group_key,
