@@ -36,8 +36,8 @@ adversary_lookup AS (
     r.id as report_id,
     collect_set(a.adversary_id) AS adversary_ids
   FROM identifiers r
-  LEFT JOIN {{ source_schema }}.adversary a
-    ON array_contains(split(coalesce(a.rasd_ids, ''), '[|]'), r.id)
+  LEFT JOIN {{ target_schema }}.stg_adversary a
+    ON array_contains(a.members_rasd_reports, r.id)
   GROUP BY r.id
 ),
 
